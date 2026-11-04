@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grievance Router - BBMP Civic Complaints</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9ff; color: #0b1c30; }
+        .header { background: #00152f; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1.5rem; }
+        .nav { display: flex; gap: 1rem; }
+        .nav a { color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; transition: background 0.2s; }
+        .nav a:hover { background: rgba(255,255,255,0.1); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .stat-card { background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; }
+        .stat-card h3 { font-size: 0.875rem; color: #64748b; margin-bottom: 0.5rem; }
+        .stat-card .value { font-size: 2rem; font-weight: 700; color: #00152f; }
+        .section { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .section h2 { font-size: 1.25rem; margin-bottom: 1rem; }
+        .filters { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        .filters select, .filters input { padding: 0.5rem 1rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; }
+        .complaint-list { max-height: 400px; overflow-y: auto; }
+        .complaint-item { padding: 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+        .complaint-item:last-child { border-bottom: none; }
+        .complaint-info { flex: 1; }
+        .complaint-id { font-family: monospace; font-size: 0.875rem; color: #00152f; font-weight: 600; }
+        .complaint-text { font-size: 0.875rem; color: #475569; margin: 0.25rem 0; }
+        .complaint-meta { font-size: 0.75rem; color: #94a3b8; }
+        .severity-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+        .severity-low { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+        .severity-medium { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+        .severity-high { background: #fff7ed; color: #9a3412; border: 1px solid #fdba74; }
+        .severity-critical { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; }
+        .category-badge { background: #f1f5f9; color: #475569; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+        .loading { text-align: center; padding: 2rem; color: #64748b; }
+        .error { background: #fef2f2; color: #991b1b; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🏛️ Grievance Router</h1>
+        <nav class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/command-map">Command Map</a>
+            <a href="/portal">Citizen Portal</a>
+            <a href="/track">Track Complaint</a>
+            <a href="/docs">API</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Complaints</h3>
+                <div class="value" id="total-complaints">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Active Issues</h3>
+                <div class="value" id="total-issues">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Active Alerts</h3>
+                <div class="value" id="total-alerts">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Wards Covered</h3>
+                <div class="value" id="total-wards">-</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Recent Complaints</h2>
+            <div class="filters">
+                <select id="category-filter">
+                    <option value="">All Categories</option>
+                    <option value="roads">Roads</option>
+                    <option value="water">Water</option>
+                    <option value="waste">Waste</option>
+                    <option value="streetlights">Streetlights</option>
+                    <option value="drainage">Drainage</option>
+                    <option value="trees">Trees</option>
+                </select>
+                <select id="severity-filter">
+                    <option value="">All Severities</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                </select>
+            </div>
+            <div class="complaint-list" id="complaint-list">
+                <div class="loading">Loading complaints...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Active Alerts</h2>
+            <div class="complaint-list" id="alert-list">
+                <div class="loading">Loading alerts...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+
+        async function fetchComplaints() {
+            try {
+                const [category, severity] = [
+                    document.getElementById('category-filter').value,
+                    document.getElementById('severity-filter').value
+                ];
+
+                let url = `${API_BASE}/api/complaints?limit=50`;
+                if (category) url += `&category=${category}`;
+                if (severity) url += `&severity=${severity}`;
+
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Failed to fetch complaints');
+                return await response.json();
+            } catch (error) {
+                console.error('Error fetching complaints:', error);
+                return [];
+            }
+        }
+
+        async function fetchAlerts() {
+            try {
+                const response = await fetch(`${API_BASE}/api/alerts?active_only=true`);
+                if (!response.ok) throw new Error('Failed to fetch alerts');
+                return await response.json();
+            } catch (error) {
+                console.error('Error fetching alerts:', error);
+                return [];
+            }
+        }
+
+        function renderComplaints(complaints) {
+            const container = document.getElementById('complaint-list');
+
+            if (!complaints || complaints.length === 0) {
+                container.innerHTML = '<div class="loading">No complaints found</div>';
+                return;
+            }
+
+            container.innerHTML = complaints.map(c => `
+                <div class="complaint-item">
+                    <div class="complaint-info">
+                        <div class="complaint-id">${c.complaint_id}</div>
+                        <div class="complaint-text">${c.text.substring(0, 80)}...</div>
+                        <div class="complaint-meta">
+                            ${c.ward_name || 'Unknown Ward'} • ${c.category} • ${c.language}
+                        </div>
+                    </div>
+                    <span class="severity-badge severity-${c.severity}">${c.severity}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderAlerts(alerts) {
+            const container = document.getElementById('alert-list');
+
+            if (!alerts || alerts.length === 0) {
+                container.innerHTML = '<div class="loading">No active alerts</div>';
+                return;
+            }
+
+            container.innerHTML = alerts.map(a => `
+                <div class="complaint-item">
+                    <div class="complaint-info">
+                        <div class="complaint-id">${a.alert_id}</div>
+                        <div class="complaint-text">${a.title}</div>
+                        <div class="complaint-meta">${a.alert_type} • ${a.category} • ${a.ward_name || 'Unknown'}</div>
+                    </div>
+                    <span class="severity-badge severity-${a.severity === 'critical' ? 'critical' : a.severity === 'high' ? 'high' : 'medium'}">
+                        ${a.severity}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        async function updateStats() {
+            try {
+                const [complaints, issues, alerts] = await Promise.all([
+                    fetchComplaints(),
+                    fetch(`${API_BASE}/api/issues`).then(r => r.json()).catch(() => []),
+                    fetchAlerts()
+                ]);
+
+                document.getElementById('total-complaints').textContent = complaints.length;
+                document.getElementById('total-issues').textContent = issues.length;
+                document.getElementById('total-alerts').textContent = alerts.length;
+
+                // Get unique wards
+                const wards = new Set(complaints.filter(c => c.ward_number).map(c => c.ward_number));
+                document.getElementById('total-wards').textContent = wards.size;
+            } catch (error) {
+                console.error('Error updating stats:', error);
+            }
+        }
+
+        async function init() {
+            const complaints = await fetchComplaints();
+            const alerts = await fetchAlerts();
+
+            renderComplaints(complaints);
+            renderAlerts(alerts);
+            updateStats();
+
+            // Set up filter listeners
+            document.getElementById('category-filter').addEventListener('change', async () => {
+                const complaints = await fetchComplaints();
+                renderComplaints(complaints);
+            });
+
+            document.getElementById('severity-filter').addEventListener('change', async () => {
+                const complaints = await fetchComplaints();
+                renderComplaints(complaints);
+            });
+
+            // Auto-refresh every 30 seconds
+            setInterval(async () => {
+                const complaints = await fetchComplaints();
+                const alerts = await fetchAlerts();
+                renderComplaints(complaints);
+                renderAlerts(alerts);
+                updateStats();
+            }, 30000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Grievance - Citizen Portal</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9ff; color: #0b1c30; }
+        .header { background: #00152f; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1.5rem; }
+        .nav { display: flex; gap: 1rem; }
+        .nav a { color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; }
+        .nav a:hover { background: rgba(255,255,255,0.1); }
+        .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+        .form-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 2rem; }
+        .form-card h2 { font-size: 1.5rem; margin-bottom: 0.5rem; color: #00152f; }
+        .form-card p { color: #64748b; margin-bottom: 1.5rem; }
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 0.5rem; color: #0b1c30; }
+        .form-group label .optional { font-weight: 400; color: #94a3b8; font-size: 0.875rem; }
+        textarea { width: 100%; min-height: 120px; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; font-family: inherit; resize: vertical; }
+        textarea:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15); }
+        input { width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; }
+        input:focus { outline: none; border-color: #14b8a6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.15); }
+        .location-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .btn { background: #00152f; color: white; border: none; padding: 0.875rem 2rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; }
+        .btn:hover { background: #0f2a4a; }
+        .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .result-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 2rem; margin-top: 1.5rem; display: none; }
+        .result-card.success { border-color: #10b981; }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .result-id { font-family: monospace; font-size: 1.125rem; font-weight: 700; color: #00152f; }
+        .severity-badge { padding: 0.5rem 1rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 600; text-transform: uppercase; }
+        .severity-low { background: #ecfdf5; color: #065f46; }
+        .severity-medium { background: #fffbeb; color: #92400e; }
+        .severity-high { background: #fff7ed; color: #9a3412; }
+        .severity-critical { background: #fef2f2; color: #991b1b; }
+        .result-details { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .detail-item { }
+        .detail-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 0.25rem; }
+        .detail-value { font-weight: 600; color: #0b1c30; }
+        .error-msg { background: #fef2f2; color: #991b1b; padding: 1rem; border-radius: 8px; margin-top: 1rem; }
+        .char-count { text-align: right; font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem; }
+        .lang-hint { font-size: 0.75rem; color: #14b8a6; margin-top: 0.25rem; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>📝 Report a Grievance</h1>
+        <nav class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/command-map">Command Map</a>
+            <a href="/portal" class="active">Report</a>
+            <a href="/track">Track</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="form-card">
+            <h2>Submit Your Complaint</h2>
+            <p>Describe your civic issue. We support English, Hindi, Kannada, Tamil, and Hinglish.</p>
+
+            <form id="complaint-form">
+                <div class="form-group">
+                    <label>Complaint Description *</label>
+                    <textarea id="complaint-text" placeholder="e.g., Big pothole on main road near HSR Layout sector 1..." required maxlength="5000"></textarea>
+                    <div class="char-count"><span id="char-count">0</span>/5000</div>
+                    <div class="lang-hint" id="lang-hint"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Location *</label>
+                    <div class="location-row">
+                        <input type="number" id="latitude" placeholder="Latitude (e.g., 12.9121)" step="any" required>
+                        <input type="number" id="longitude" placeholder="Longitude (e.g., 77.6446)" step="any" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Address <span class="optional">(optional)</span></label>
+                    <input type="text" id="address" placeholder="e.g., HSR Layout, Sector 1, near BDA Complex">
+                </div>
+
+                <div class="form-group">
+                    <label>Your Name <span class="optional">(optional)</span></label>
+                    <input type="text" id="citizen-name" placeholder="Enter your name">
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number <span class="optional">(optional)</span></label>
+                    <input type="tel" id="citizen-phone" placeholder="10-digit mobile number">
+                </div>
+
+                <button type="submit" class="btn" id="submit-btn">Submit Complaint</button>
+            </form>
+
+            <div id="error-container"></div>
+        </div>
+
+        <div class="result-card" id="result-card">
+            <div class="result-header">
+                <div class="result-id" id="result-complaint-id"></div>
+                <span class="severity-badge" id="result-severity"></span>
+            </div>
+            <div class="result-details">
+                <div class="detail-item">
+                    <div class="detail-label">Category</div>
+                    <div class="detail-value" id="result-category"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Department</div>
+                    <div class="detail-value" id="result-department"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Ward</div>
+                    <div class="detail-value" id="result-ward"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Language Detected</div>
+                    <div class="detail-value" id="result-language"></div>
+                </div>
+            </div>
+            <p style="margin-top: 1rem; color: #64748b; font-size: 0.875rem;">
+                ✅ Your complaint has been registered. Save your complaint ID for tracking.
+                <a href="/track" style="color: #14b8a6;">Track your complaint →</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('complaint-form');
+        const textArea = document.getElementById('complaint-text');
+        const charCount = document.getElementById('char-count');
+        const langHint = document.getElementById('lang-hint');
+
+        textArea.addEventListener('input', () => {
+            charCount.textContent = textArea.value.length;
+
+            // Simple language hint
+            const text = textArea.value.toLowerCase();
+            if (text.includes('hai') || text.includes('nahi') || text.includes('karo')) {
+                langHint.textContent = 'Detected: Hinglish';
+            } else if (/[ಅ-ಹ]/.test(text)) {
+                langHint.textContent = 'Detected: Kannada';
+            } else if (/[अ-ह]/.test(text)) {
+                langHint.textContent = 'Detected: Hindi';
+            } else if (/[அ-ஹ]/.test(text)) {
+                langHint.textContent = 'Detected: Tamil';
+            } else if (text.length > 10) {
+                langHint.textContent = 'Detected: English';
+            } else {
+                langHint.textContent = '';
+            }
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const submitBtn = document.getElementById('submit-btn');
+            const errorContainer = document.getElementById('error-container');
+            const resultCard = document.getElementById('result-card');
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+            errorContainer.innerHTML = '';
+            resultCard.style.display = 'none';
+
+            const data = {
+                text: document.getElementById('complaint-text').value,
+                latitude: parseFloat(document.getElementById('latitude').value),
+                longitude: parseFloat(document.getElementById('longitude').value),
+                address: document.getElementById('address').value || null,
+                citizen_name: document.getElementById('citizen-name').value || null,
+                citizen_phone: document.getElementById('citizen-phone').value || null
+            };
+
+            try {
+                const response = await fetch('/api/complaints', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to submit complaint');
+                }
+
+                const result = await response.json();
+
+                // Show result
+                document.getElementById('result-complaint-id').textContent = result.complaint_id;
+                document.getElementById('result-category').textContent = result.category;
+                document.getElementById('result-department').textContent = result.department;
+                document.getElementById('result-ward').textContent = result.ward_name || `Ward ${result.ward_number}`;
+                document.getElementById('result-language').textContent = result.language;
+
+                const severityEl = document.getElementById('result-severity');
+                severityEl.textContent = result.severity;
+                severityEl.className = `severity-badge severity-${result.severity}`;
+
+                resultCard.style.display = 'block';
+                resultCard.classList.add('success');
+
+                // Reset form
+                form.reset();
+                charCount.textContent = '0';
+                langHint.textContent = '';
+
+            } catch (error) {
+                errorContainer.innerHTML = `<div class="error-msg">Error: ${error.message}</div>`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Complaint';
+            }
+        });
+    </script>
+</body>
+</html>

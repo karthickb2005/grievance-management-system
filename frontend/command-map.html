@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Command Map - Grievance Router</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9ff; }
+        .header { background: #00152f; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1.5rem; }
+        .nav { display: flex; gap: 1rem; }
+        .nav a { color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; }
+        .nav a:hover { background: rgba(255,255,255,0.1); }
+        .nav a.active { background: rgba(255,255,255,0.2); }
+        .container { display: grid; grid-template-columns: 1fr 350px; height: calc(100vh - 60px); }
+        #map { height: 100%; }
+        .sidebar { background: white; border-left: 1px solid #e2e8f0; overflow-y: auto; padding: 1rem; }
+        .sidebar h2 { font-size: 1.125rem; margin-bottom: 1rem; color: #00152f; }
+        .ward-item { padding: 0.75rem; border-bottom: 1px solid #e2e8f0; cursor: pointer; }
+        .ward-item:hover { background: #f1f5f9; }
+        .ward-name { font-weight: 600; color: #00152f; }
+        .ward-count { font-size: 0.875rem; color: #64748b; margin-top: 0.25rem; }
+        .legend { background: #f8f9ff; padding: 1rem; border-radius: 8px; margin-top: 1rem; }
+        .legend h3 { font-size: 0.875rem; margin-bottom: 0.5rem; }
+        .legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; margin: 0.25rem 0; }
+        .legend-color { width: 16px; height: 16px; border-radius: 4px; }
+        .severity-high { background: #f97316; }
+        .severity-medium { background: #f59e0b; }
+        .severity-low { background: #10b981; }
+        .severity-critical { background: #ef4444; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>📍 Command Map</h1>
+        <nav class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/command-map" class="active">Command Map</a>
+            <a href="/portal">Citizen Portal</a>
+            <a href="/track">Track</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div id="map"></div>
+        <div class="sidebar">
+            <h2>Wards Overview</h2>
+            <div id="ward-list">
+                <div style="padding: 1rem; color: #64748b;">Loading...</div>
+            </div>
+            <div class="legend">
+                <h3>Severity Legend</h3>
+                <div class="legend-item"><div class="legend-color severity-critical"></div> Critical (Emergency)</div>
+                <div class="legend-item"><div class="legend-color severity-high"></div> High (Urgent)</div>
+                <div class="legend-item"><div class="legend-color severity-medium"></div> Medium (Standard)</div>
+                <div class="legend-item"><div class="legend-color severity-low"></div> Low (Routine)</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map centered on Bangalore
+        const map = L.map('map').setView([12.9716, 77.5946], 12);
+
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Severity colors
+        const severityColors = {
+            'critical': '#ef4444',
+            'high': '#f97316',
+            'medium': '#f59e0b',
+            'low': '#10b981'
+        };
+
+        // Fetch and display hex density
+        async function loadHexDensity() {
+            try {
+                const response = await fetch('/api/geo/hex-density');
+                const geojson = await response.json();
+
+                L.geoJSON(geojson, {
+                    style: function(feature) {
+                        const count = feature.properties.count || 0;
+                        let color = '#10b981';
+                        let fillOpacity = 0.3;
+
+                        if (count >= 10) {
+                            color = '#ef4444';
+                            fillOpacity = 0.5;
+                        } else if (count >= 5) {
+                            color = '#f97316';
+                            fillOpacity = 0.4;
+                        } else if (count >= 3) {
+                            color = '#f59e0b';
+                            fillOpacity = 0.35;
+                        }
+
+                        return {
+                            color: color,
+                            weight: 1,
+                            fillColor: color,
+                            fillOpacity: fillOpacity
+                        };
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const props = feature.properties;
+                        layer.bindPopup(`
+                            <strong>Complaints: ${props.count}</strong><br>
+                            Critical: ${props.severity_critical || 0}<br>
+                            High: ${props.severity_high || 0}<br>
+                            Medium: ${props.severity_medium || 0}<br>
+                            Low: ${props.severity_low || 0}
+                        `);
+                    }
+                }).addTo(map);
+            } catch (error) {
+                console.error('Error loading hex density:', error);
+            }
+        }
+
+        // Fetch complaints
+        async function loadComplaints() {
+            try {
+                const response = await fetch('/api/complaints?limit=100');
+                const complaints = await response.json();
+
+                // Group by ward
+                const wardCounts = {};
+                complaints.forEach(c => {
+                    const ward = c.ward_name || `Ward ${c.ward_number}`;
+                    wardCounts[ward] = (wardCounts[ward] || 0) + 1;
+                });
+
+                // Render ward list
+                const container = document.getElementById('ward-list');
+                const sortedWards = Object.entries(wardCounts).sort((a, b) => b[1] - a[1]);
+
+                container.innerHTML = sortedWards.map(([ward, count]) => `
+                    <div class="ward-item">
+                        <div class="ward-name">${ward}</div>
+                        <div class="ward-count">${count} complaints</div>
+                    </div>
+                `).join('');
+
+                // Add markers to map
+                complaints.forEach(c => {
+                    if (c.latitude && c.longitude) {
+                        const marker = L.circleMarker([c.latitude, c.longitude], {
+                            radius: 6,
+                            fillColor: severityColors[c.severity] || '#64748b',
+                            color: '#fff',
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        }).addTo(map);
+
+                        marker.bindPopup(`
+                            <strong>${c.complaint_id}</strong><br>
+                            ${c.text.substring(0, 60)}...<br>
+                            <em>Category: ${c.category}</em><br>
+                            <em>Severity: ${c.severity}</em>
+                        `);
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading complaints:', error);
+                document.getElementById('ward-list').innerHTML = '<div style="padding: 1rem; color: #ef4444;">Failed to load</div>';
+            }
+        }
+
+        loadHexDensity();
+        loadComplaints();
+    </script>
+</body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Complaint - Grievance Router</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8f9ff; color: #0b1c30; }
+        .header { background: #00152f; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1.5rem; }
+        .nav { display: flex; gap: 1rem; }
+        .nav a { color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 4px; }
+        .nav a:hover { background: rgba(255,255,255,0.1); }
+        .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+        .search-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 2rem; margin-bottom: 1.5rem; }
+        .search-card h2 { font-size: 1.5rem; margin-bottom: 1rem; }
+        .search-form { display: flex; gap: 1rem; }
+        .search-form input { flex: 1; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; }
+        .search-form button { background: #00152f; color: white; border: none; padding: 0.75rem 2rem; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .search-form button:hover { background: #0f2a4a; }
+        .result-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 2rem; display: none; }
+        .result-header { margin-bottom: 1.5rem; }
+        .complaint-id { font-family: monospace; font-size: 1.5rem; font-weight: 700; color: #00152f; }
+        .status-badge { display: inline-block; padding: 0.5rem 1rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 600; margin-top: 0.5rem; }
+        .status-submitted { background: #dbeafe; color: #1e40af; }
+        .status-acknowledged { background: #fef3c7; color: #92400e; }
+        .status-in_progress { background: #fef3c7; color: #92400e; }
+        .status-resolved { background: #d1fae5; color: #065f46; }
+        .status-closed { background: #f3f4f6; color: #4b5563; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0; }
+        .detail-item { }
+        .detail-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; margin-bottom: 0.25rem; font-weight: 600; }
+        .detail-value { font-size: 1rem; color: #0b1c30; }
+        .severity-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+        .severity-low { background: #ecfdf5; color: #065f46; }
+        .severity-medium { background: #fffbeb; color: #92400e; }
+        .severity-high { background: #fff7ed; color: #9a3412; }
+        .severity-critical { background: #fef2f2; color: #991b1b; }
+        .complaint-text { background: #f8f9ff; padding: 1rem; border-radius: 8px; margin: 1rem 0; color: #475569; line-height: 1.6; }
+        .error-msg { background: #fef2f2; color: #991b1b; padding: 1rem; border-radius: 8px; }
+        .loading { text-align: center; padding: 2rem; color: #64748b; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🔍 Track Complaint</h1>
+        <nav class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/command-map">Command Map</a>
+            <a href="/portal">Report</a>
+            <a href="/track">Track</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="search-card">
+            <h2>Track Your Complaint</h2>
+            <p style="color: #64748b; margin-bottom: 1rem;">Enter your complaint ID to check status</p>
+            <form class="search-form" id="search-form">
+                <input
+                    type="text"
+                    id="complaint-id-input"
+                    placeholder="e.g., BBMP-2024-W150-00001"
+                    required
+                    pattern="BBMP-\d{4}-W\d{3}-\d{5}"
+                >
+                <button type="submit">Track</button>
+            </form>
+        </div>
+
+        <div class="result-card" id="result-card">
+            <div class="result-header">
+                <div class="complaint-id" id="complaint-id"></div>
+                <span class="status-badge" id="status-badge"></span>
+            </div>
+
+            <div class="complaint-text" id="complaint-text"></div>
+
+            <div class="details-grid">
+                <div class="detail-item">
+                    <div class="detail-label">Category</div>
+                    <div class="detail-value" id="category"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Department</div>
+                    <div class="detail-value" id="department"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Severity</div>
+                    <div class="detail-value"><span class="severity-badge" id="severity"></span></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Ward</div>
+                    <div class="detail-value" id="ward"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Language</div>
+                    <div class="detail-value" id="language"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Submitted</div>
+                    <div class="detail-value" id="created-at"></div>
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; padding: 1rem; background: #f8f9ff; border-radius: 8px;">
+                <div class="detail-label">Location</div>
+                <div class="detail-value" id="location"></div>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #64748b;" id="address"></div>
+            </div>
+        </div>
+
+        <div id="error-container"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('search-form');
+        const input = document.getElementById('complaint-id-input');
+        const resultCard = document.getElementById('result-card');
+        const errorContainer = document.getElementById('error-container');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const complaintId = input.value.trim();
+            resultCard.style.display = 'none';
+            errorContainer.innerHTML = '<div class="loading">Searching...</div>';
+
+            try {
+                const response = await fetch(`/api/complaints/${complaintId}`);
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Complaint not found. Please check the ID and try again.');
+                    }
+                    throw new Error('Failed to fetch complaint details');
+                }
+
+                const data = await response.json();
+                errorContainer.innerHTML = '';
+
+                // Populate result card
+                document.getElementById('complaint-id').textContent = data.complaint_id;
+                document.getElementById('complaint-text').textContent = data.text;
+                document.getElementById('category').textContent = data.category.toUpperCase();
+                document.getElementById('department').textContent = data.department;
+                document.getElementById('ward').textContent = data.ward_name || `Ward ${data.ward_number}`;
+                document.getElementById('language').textContent = data.language.toUpperCase();
+                document.getElementById('location').textContent = `${data.latitude.toFixed(4)}, ${data.longitude.toFixed(4)}`;
+                document.getElementById('address').textContent = data.address || 'No address provided';
+
+                // Format date
+                const date = new Date(data.created_at);
+                document.getElementById('created-at').textContent = date.toLocaleString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                // Status badge
+                const statusBadge = document.getElementById('status-badge');
+                statusBadge.textContent = data.status.replace('_', ' ').toUpperCase();
+                statusBadge.className = `status-badge status-${data.status}`;
+
+                // Severity badge
+                const severityBadge = document.getElementById('severity');
+                severityBadge.textContent = data.severity.toUpperCase();
+                severityBadge.className = `severity-badge severity-${data.severity}`;
+
+                resultCard.style.display = 'block';
+
+            } catch (error) {
+                errorContainer.innerHTML = `<div class="error-msg">❌ ${error.message}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

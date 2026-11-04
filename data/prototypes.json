@@ -1,0 +1,10 @@
+{
+  "prototypes": [
+    {"category": "roads", "text": "pothole on main road", "language": "en"},
+    {"category": "water", "text": "water pipeline leaking", "language": "en"},
+    {"category": "waste", "text": "garbage not collected", "language": "en"},
+    {"category": "streetlights", "text": "street light not working", "language": "en"},
+    {"category": "drainage", "text": "drain blocked", "language": "en"},
+    {"category": "trees", "text": "tree branch fallen on road", "language": "en"}
+  ]
+}
